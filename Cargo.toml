@@ -1,0 +1,8 @@
+[package]
+name = "clinical_trial_risk"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+polars = "0.43.1"
+statrs = "0.17.1"
