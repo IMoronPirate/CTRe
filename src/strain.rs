@@ -9,6 +9,7 @@ pub enum State {
 }
 
 impl State {
+    /// Get the value of the state
     pub(crate) fn value(&self) -> f64 {
         match &self {
             State::S(x) => *x,
@@ -18,6 +19,17 @@ impl State {
             State::TechnicalError(x) => *x,
         }
     }
+
+    /// Get the encoded position of the state
+    pub(crate) fn position(&self) -> usize {
+        match &self {
+            State::S(_) => 0,
+            State::I(_) => 1,
+            State::R(_) => 2,
+            State::Inconclusive(_) => 3,
+            State::TechnicalError(_) => 4,
+        }
+    }
 }
 
 pub struct Strain {
@@ -25,7 +37,9 @@ pub struct Strain {
 }
 
 impl Strain {
-		/// Generate a new Strain check for consistency in input probabilities
+    /// Generate a new Strain check for consistency in input probabilities
+		//TODO different strains might have different outcome, for instance no I,
+		//TODO or not inconclusive
     pub fn new(p: &[State; 5]) -> Self {
         assert_eq!(
             p.iter().map(|x| x.value()).sum::<f64>(),
@@ -45,6 +59,20 @@ impl Strain {
         }
         assert_eq!(tot_states, 11111, "Missing one possible state outcome.");
         Strain { p: p.to_vec() }
+    }
+
+    fn probabilities_values(ss: &Self) -> Vec<f64> {
+        let mut probs = Vec::<f64>::with_capacity(5);
+        for state in ss.p.iter() {
+            match state {
+                State::S(x) => probs[state.position()] = *x,
+                State::I(x) => probs[state.position()] = *x,
+                State::R(x) => probs[state.position()] = *x,
+                State::Inconclusive(x) => probs[state.position()] = *x,
+                State::TechnicalError(x) => probs[state.position()] = *x,
+            }
+        }
+        probs
     }
 }
 
