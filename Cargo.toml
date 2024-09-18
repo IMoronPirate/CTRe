@@ -10,3 +10,7 @@ path = "src/lib.rs"
 [[bin]]
 name = "ctre"
 path = "src/main.rs"
+
+[dependencies]
+num = "0.4.3"
+statrs = "0.17.1"
