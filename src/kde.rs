@@ -16,45 +16,44 @@
 // along with clinical_trial_risk.  If not, see <https://www.gnu.org/licenses/>.
 
 //! Generate a simple KDE estimation
-use std::cmp::min;
-
 use crate::statsbase::{quantile, standard_deviation};
 use num::{Float, ToPrimitive};
 use statrs::distribution::Continuous;
 
 pub struct KDE<R, J>
 where
-    R: Continuous<J, J>,
+    R: Continuous<J, J> + Clone,
     J: Float,
 {
     /// The prior proability of points
     /// TODO expand to different priors, for now jsut the same for every point
-    priors: J,
-    /// The kernel used for the KDE
-    kernel: R,
-    /// The bandwith of kernel
-    bandwidth: J,
-    /// The data
-    data: Vec<J>,
-    // _marker: marker::PhantomData<T>,
+    priors: Vec<J>,
+    /// The kernels used for the KDE
+    kernels: Vec<R>,
 }
 
 impl<R, J> KDE<R, J>
 where
-    R: Continuous<J, J>,
+    R: Continuous<J, J> + Clone,
     J: Float,
 {
-    pub fn new(data: &[J], kernel: R) -> Self {
+    pub fn new(priors: &[J], kernels: &[R]) -> Self {
         // Vec::from_iter(std::iter::repeat(1.0 / data.len()).take(data.len()));
+        assert_eq!(
+            priors
+                .into_iter()
+                .map(|x| ToPrimitive::to_f64(x).unwrap())
+                .sum::<f64>(),
+            1.0,
+            "Priors do not sum to one"
+        );
         KDE {
-            priors: J::one() / num::cast(data.len()).unwrap(),
-            kernel,
-            bandwidth: silverman_bandwith(data),
-            data: data.to_vec(),
+            priors: priors.to_vec(),
+            kernels: kernels.to_vec(),
         }
     }
 
-    // pub fn with_bandwith(data: &[J], kernel: R, bandwidth: J) -> Self {
+    // pub fn with_priors(data: &[J], kernel: R, bandwidth: J) -> Self {
     //     // Vec::from_iter(std::iter::repeat(1.0 / data.len()).take(data.len()));
     //     KDE {
     //         priors: 1.0 / (data.len() as f64),
@@ -65,28 +64,36 @@ where
     // }
 
     pub fn pdf(&self, x: J) -> J {
-        self.data
+        self.kernels
             .iter()
-            .map(|xi| {
-                (self.priors / self.bandwidth)
-                    * self
-                        .kernel
-                        .pdf((x - *xi) / self.bandwidth)
-            })
+            .zip(self.priors.iter())
+            .map(|(f, p)| *p * f.pdf(x))
             .reduce(|acc, f| acc + f)
             .unwrap()
     }
 }
 
 /// Silverman's rule of thumb for KDE bandwidth selection
-pub(super) fn silverman_bandwith<J: Float>(data: &[J]) -> J {
+pub fn silverman_bandwith<J: Float>(data: &[J]) -> J {
     let alpha: J = num::cast(0.9).unwrap();
     let n: J = num::cast(data.len()).unwrap();
 
     // Calculate width using variance and IQR
     let variance = standard_deviation(data, None);
-    let iqr = quantile(data, num::cast(0.75).unwrap())
-        - quantile(data, num::cast(0.25).unwrap());
+    let iqr = quantile(data, num::cast(0.75).unwrap()) - quantile(data, num::cast(0.25).unwrap());
 
     alpha * variance.min(iqr / num::cast(1.34).unwrap()) * n.powf(num::cast(-1. / 5.).unwrap())
+}
+
+impl<R, J> ::rand::distributions::Distribution<f64> for KDE<R, J>
+where
+    R: Continuous<J, J> + Clone,
+    J: Float,
+{
+    fn sample<T: rand::Rng + ?Sized>(&self, rng: &mut T) -> f64 {
+        todo!()
+        // self.data.map(|xi| {
+        //     (self.priors / self.bandwidth) * rnd.sample(self.kernel)
+        // })
+    }
 }

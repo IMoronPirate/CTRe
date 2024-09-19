@@ -13,4 +13,5 @@ path = "src/main.rs"
 
 [dependencies]
 num = "0.4.3"
+rand = "0.8.5"
 statrs = "0.17.1"
