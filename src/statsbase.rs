@@ -69,7 +69,7 @@ where
 
 /// Quantile function calculate as Definition 8 in
 /// “Sample Quantile in Statistical Packages,” Current Biology, vol. 7, no. 3, p. R126, Mar. 1997, doi: 10.1016/S0960-9822(97)70976-X.
-pub fn quantile<T>(v: &mut [T], p: T) -> T
+pub fn quantile<T>(v: &[T], p: T) -> T
 where
     T: Float,
 {
@@ -86,7 +86,9 @@ where
     let gamma = (p * n + m - t1) - j;
 
     // Get order statistics sorting the vec
-    v.sort_by(|a, b| a.partial_cmp(b).unwrap());
+		let mut ord_stat = vec![T::zero(); v.len()];
+    ord_stat.copy_from_slice(v);
+		ord_stat.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
     if j < t0 {
         v[0]

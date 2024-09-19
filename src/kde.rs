@@ -16,21 +16,24 @@
 // along with clinical_trial_risk.  If not, see <https://www.gnu.org/licenses/>.
 
 //! Generate a simple KDE estimation
+use std::cmp::min;
+
+use crate::statsbase::{quantile, standard_deviation};
 use num::{Float, ToPrimitive};
 use statrs::distribution::Continuous;
 
 pub struct KDE<R, J>
 where
-    R: Continuous<f64, f64>,
+    R: Continuous<J, J>,
     J: Float,
 {
     /// The prior proability of points
     /// TODO expand to different priors, for now jsut the same for every point
-    priors: f64,
+    priors: J,
     /// The kernel used for the KDE
     kernel: R,
     /// The bandwith of kernel
-    bandwidth: f64,
+    bandwidth: J,
     /// The data
     data: Vec<J>,
     // _marker: marker::PhantomData<T>,
@@ -38,91 +41,52 @@ where
 
 impl<R, J> KDE<R, J>
 where
-    R: Continuous<f64, f64>,
+    R: Continuous<J, J>,
     J: Float,
 {
-    pub fn _kde(data: &[J], kernel: R) -> Self {
+    pub fn new(data: &[J], kernel: R) -> Self {
         // Vec::from_iter(std::iter::repeat(1.0 / data.len()).take(data.len()));
         KDE {
-            priors: 1.0 / (data.len() as f64),
+            priors: J::one() / num::cast(data.len()).unwrap(),
             kernel,
             bandwidth: silverman_bandwith(data),
             data: data.to_vec(),
         }
     }
 
-    pub fn kde(data: &[J], kernel: R, bandwidth: J) -> Self {
-			// Vec::from_iter(std::iter::repeat(1.0 / data.len()).take(data.len()));
-			KDE {
-					priors: 1.0 / (data.len() as f64),
-					kernel,
-					bandwidth: ToPrimitive::to_f64(&bandwidth).unwrap(),
-					data: data.to_vec(),
-			}
-	}
+    // pub fn with_bandwith(data: &[J], kernel: R, bandwidth: J) -> Self {
+    //     // Vec::from_iter(std::iter::repeat(1.0 / data.len()).take(data.len()));
+    //     KDE {
+    //         priors: 1.0 / (data.len() as f64),
+    //         kernel,
+    //         bandwidth,
+    //         data: data.to_vec(),
+    //     }
+    // }
 
-    pub fn pdf(&self, x: f64) -> f64 {
+    pub fn pdf(&self, x: J) -> J {
         self.data
             .iter()
             .map(|xi| {
                 (self.priors / self.bandwidth)
                     * self
                         .kernel
-                        .pdf((x - ToPrimitive::to_f64(xi).unwrap()) / self.bandwidth)
+                        .pdf((x - *xi) / self.bandwidth)
             })
             .reduce(|acc, f| acc + f)
             .unwrap()
     }
 }
 
-
 /// Silverman's rule of thumb for KDE bandwidth selection
-pub(super) fn silverman_bandwith<J: Float>(data: &[J]) -> f64 {
-	let alpha = 0.9;
-	let n = data.len();
+pub(super) fn silverman_bandwith<J: Float>(data: &[J]) -> J {
+    let alpha: J = num::cast(0.9).unwrap();
+    let n: J = num::cast(data.len()).unwrap();
 
-	// Calculate width using variance and IQR
-	let variance = standard_deviation(data, None);
-	todo!()
-}
+    // Calculate width using variance and IQR
+    let variance = standard_deviation(data, None);
+    let iqr = quantile(data, num::cast(0.75).unwrap())
+        - quantile(data, num::cast(0.25).unwrap());
 
-/// The mean is the sum of a collection of numbers divided by the number of numbers in the collection.
-/// (reference)[http://en.wikipedia.org/wiki/Arithmetic_mean]
-pub fn mean<T>(v: &[T]) -> T
-    where T: Float
-{
-    let len = num::cast(v.len()).unwrap();
-    v.iter().fold(T::zero(), |acc: T, elem| acc + *elem) / len
-}
-
-/// (Sample variance)[http://en.wikipedia.org/wiki/Variance#Sample_variance]
-pub fn variance<T>(v: &[T], xbar: Option<T>) -> T
-    where T: Float
-{
-    assert!(v.len() > 1, "variance requires at least two data points");
-    let len: T = num::cast(v.len()).unwrap();
-    let sum = sum_square_deviations(v, xbar);
-    sum / (len - T::one())
-}
-
-///  Standard deviation is a measure that is used to quantify the amount of variation or
-///  dispersion of a set of data values. (reference)[http://en.wikipedia.org/wiki/Standard_deviation]
-pub fn standard_deviation<T>(v: &[T], xbar: Option<T>) -> T
-    where T: Float
-{
-    let var = variance(v, xbar);
-    var.sqrt()
-}
-
-fn sum_square_deviations<T>(v: &[T], c: Option<T>) -> T
-    where T: Float
-{
-    let c = match c {
-        Some(c) => c,
-        None => mean(v),
-    };
-
-    let sum = v.iter().map( |x| (*x - c) * (*x - c) ).fold(T::zero(), |acc, elem| acc + elem);
-    assert!(sum >= T::zero(), "negative sum of square root deviations");
-    sum
+    alpha * variance.min(iqr / num::cast(1.34).unwrap()) * n.powf(num::cast(-1. / 5.).unwrap())
 }
